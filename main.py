@@ -24,9 +24,6 @@ def connect_wifi(*SSID_PASSs):
 
 connect_wifi(
   ('iPhone', 'nekoneko'),
-  ('aterm-2d3596-g', '36816a76be0c5'),
-  ('Buffalo-G-F048', 's7vyvmhb8jcrj'),
-  ("aterm-b28299-g", "60898de9a1578"),
 )
 
 
