@@ -92,4 +92,25 @@ class _(M5StickC):
     z = await zaiseki.get_zaiseki("4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp", "22im0082@i-u.ac.jp", "DLkkiqCijot")
     await z.execute(zaiseki.Zaiseki.status[0])
 
-_().run()
+
+client_id = "4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp"
+authentication = {
+    "email": "22im0082@i-u.ac.jp",
+    "pc_login_pass":"DLkkiqCijot",
+}
+
+def attendance(isPresence):
+  lcd.clear(lcd.BLACK)
+  lcd.text(lcd.CENTER, lcd.CENTER, 'change...')
+  zaiseki.execute(client_id, authentication, isPresence)
+  lcd.clear(lcd.BLACK)
+  lcd.text(lcd.CENTER, lcd.CENTER, 'Attendance' if isPresence else "Absence")
+
+
+isPresence = True
+attendance(isPresence)
+
+while True:
+  if btnA.isPressed():
+    isPresence = not isPresence
+    attendance(isPresence)
