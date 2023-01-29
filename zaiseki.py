@@ -1,93 +1,91 @@
 import gc
-try:
-  import socket
-except:
-  import usocket as socket
-import ssl
 import re
-import sys
-MICROPY = sys.implementation.name == "micropython"
-del sys
+import uasyncio as asyncio
 
-def get_conn():
-  sock = socket.socket()
-  sock.connect(("zaiseki.jp", 443))
-  try:
-    sock = ssl.create_default_context().wrap_socket(sock, server_hostname="zaiseki.jp")
-  except:
-    sock = ssl.wrap_socket(sock, server_hostname="zaiseki.jp")
-  return sock
+class Zaiseki:
+  status = [
+    60180,
+    60182,
+  ]
 
-def __execute(client_id, authentication, isPresence):
-  #######
-  conn = get_conn()
-  f = conn if MICROPY else conn.makefile("rwb")
-  f.write(b"GET /client/%s/login HTTP/1.1\r\n" % client_id.encode())
-  f.write(b"Host: zaiseki.jp\r\n")
-  f.write(b"\r\n")
-  if not MICROPY:
-    f.flush()
-  r = f.read()
-  session_id = re.search(rb"PHPSESSID=[^;]+;", r).group(0)[:-1]
-  token = re.search(rb"token\" value=\"[^\"]*\"", r).group(0)[14:-1]
-  del conn, f, r
-  gc.collect()
+  def __init__(self):
+    self.client = None
+    self.session_id = None
+    self.token = None
 
-  #######
-  conn = get_conn()
-  f = conn if MICROPY else conn.makefile("rwb")
-  d = b"email=%s&pc_login_pass=%s&token=%s" % (authentication["email"].encode(), authentication["pc_login_pass"].encode(), token)
-  f.write(b"POST /client/%s/login HTTP/1.1\r\n" % client_id.encode())
-  f.write(b"Host: zaiseki.jp\r\n")
-  f.write(b"Cookie: %s\r\n" % session_id)
-  f.write(b"Content-Type: application/x-www-form-urlencoded\r\n")
-  f.write(b"Content-Length: %d\r\n" % len(d))
-  f.write(b"\r\n")
-  f.write(d)
-  if not MICROPY:
-    f.flush()
-  r = f.read()
-  session_id = re.search(rb"PHPSESSID=[^;]+;", r).group(0)[:-1]
-  del conn, f, r
-  gc.collect()
+  async def init(self, client, email, password):
+    await self.__set_client(client)
+    gc.collect()
+    await self.__login(email, password)
+    gc.collect()
 
-  #######
-  conn = get_conn()
-  f = conn if MICROPY else conn.makefile("rwb")
-  f.write(b"GET /client/%s HTTP/1.1\r\n" % client_id.encode())
-  f.write(b"Host: zaiseki.jp\r\n")
-  f.write(b"Cookie: %s\r\n" % session_id)
-  f.write(b"\r\n")
-  if not MICROPY:
-    f.flush()
-  r = f.read()
-  conn.close()
-  token = re.search(rb"token\" value=\"[^\"]*\"", r).group(0)[14:-1]
-  del conn, f, r
-  gc.collect()
+  async def __set_client(self, client):
+    client = client.encode()
+    reader, writer = await asyncio.open_connection("zaiseki.jp", 443, ssl=True)
+    writer.write(b"GET /client/%s/login HTTP/1.1\r\n" % client)
+    writer.write(b"Host: zaiseki.jp\r\n")
+    writer.write(b"\r\n")
+    await writer.drain()
+    r = await reader.read(-1)
+    if b"HTTP/1.1 404" in r:
+      raise Exception
+    self.client = client
+    self.session_id = re.search(rb"PHPSESSID=(.+?);", r).group(0)[:-1]
+    self.token = re.search(rb"token\" value=\"(.+?)\"", r).group(0)[14:-1]
+    del reader, writer, r
+    gc.collect()
 
-  #######
-  conn = get_conn()
-  f = conn if MICROPY else conn.makefile("rwb")
-  d = b"status_id=%d&destination=&back_date=&back_time=&back_flg=0&member=&token=%s" % (60180 if isPresence else 60182, token)
-  f.write(b"POST /client/%s/zaiseki/update HTTP/1.1\r\n" % client_id.encode())
-  f.write(b"Host: zaiseki.jp\r\n")
-  f.write(b"Cookie: %s\r\n" % session_id)
-  f.write(b"Content-Type: application/x-www-form-urlencoded\r\n")
-  f.write(b"Content-Length: %d\r\n" % len(d))
-  f.write(b"\r\n")
-  f.write(d)
-  if not MICROPY:
-    f.flush()
-  else:
-    f.readline()
-  del conn, f
-  gc.collect()
+  async def __login(self, email, password):
+    reader, writer = await asyncio.open_connection("zaiseki.jp", 443, ssl=True)
+    d = b"email=%s&pc_login_pass=%s&token=%s" % (email.encode(), password.encode(), self.token)
+    writer.write(b"POST /client/%s/login HTTP/1.1\r\n" % self.client)
+    writer.write(b"Host: zaiseki.jp\r\n")
+    writer.write(b"Cookie: %s\r\n" % self.session_id)
+    writer.write(b"Content-Type: application/x-www-form-urlencoded\r\n")
+    writer.write(b"Content-Length: %d\r\n" % len(d))
+    writer.write(b"\r\n")
+    writer.write(d)
+    await writer.drain()
+    r = await reader.read(-1)
+    if b"HTTP/1.1 200" in r:
+      raise
+    self.session_id = re.search(rb"PHPSESSID=(.+?);", r).group(0)[:-1]
+    del reader, writer, r, d
+    gc.collect()
 
-def execute(client_id, authentication, isPresence):
-  while True:
-    try:
-      __execute(client_id, authentication, isPresence)
-      break
-    except:
-      pass
+    reader, writer = await asyncio.open_connection("zaiseki.jp", 443, ssl=True)
+    writer.write(b"GET /client/%s HTTP/1.1\r\n" % self.client)
+    writer.write(b"Host: zaiseki.jp\r\n")
+    writer.write(b"Cookie: %s\r\n" % self.session_id)
+    writer.write(b"\r\n")
+    await writer.drain()
+    r = await reader.read(-1)
+    self.token = re.search(rb"token\" value=\"(.+?)\"", r).group(0)[14:-1]
+    del reader, writer, r
+    gc.collect()
+
+  async def execute(self, status=status[0]):
+    reader, writer = await asyncio.open_connection("zaiseki.jp", 443, ssl=True)
+    d = b"status_id=%d&destination=&back_date=&back_time=&back_flg=0&member=&token=%s" % (status, self.token)
+    writer.write(b"POST /client/%s/zaiseki/update HTTP/1.1\r\n" % self.client)
+    writer.write(b"Host: zaiseki.jp\r\n")
+    writer.write(b"Cookie: %s\r\n" % self.session_id)
+    writer.write(b"Content-Type: application/x-www-form-urlencoded\r\n")
+    writer.write(b"Content-Length: %d\r\n" % len(d))
+    writer.write(b"\r\n")
+    writer.write(d)
+    await writer.drain()
+    r = await reader.read(-1)
+    del reader, writer, d
+    if re.search(rb"Location: (.+?)(\?csrf=err|/login)", r):
+      raise
+    gc.collect()
+
+async def get_zaiseki(client, email, password):
+  zaiseki = Zaiseki()
+  await zaiseki.init(client, email, password)
+  return zaiseki
+
+async def execute(client, email, password, status):
+  z = await get_zaiseki(client, email, password)
+  await z.execute(status)
