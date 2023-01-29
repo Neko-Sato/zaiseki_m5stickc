@@ -3,11 +3,6 @@ import re
 import uasyncio as asyncio
 
 class Zaiseki:
-  status = [
-    60180,
-    60182,
-  ]
-
   def __init__(self):
     self.client = None
     self.session_id = None
@@ -64,7 +59,7 @@ class Zaiseki:
     del reader, writer, r
     gc.collect()
 
-  async def execute(self, status=status[0]):
+  async def execute(self, status):
     reader, writer = await asyncio.open_connection("zaiseki.jp", 443, ssl=True)
     d = b"status_id=%d&destination=&back_date=&back_time=&back_flg=0&member=&token=%s" % (status, self.token)
     writer.write(b"POST /client/%s/zaiseki/update HTTP/1.1\r\n" % self.client)

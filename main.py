@@ -16,7 +16,7 @@ class Zaisekikun(M5StickC):
     try:
       with open(self.config_path, mode="r") as f:
         config = json.load(f)
-    except Exception as e:
+    except:
       config = {}
     return config
 
@@ -49,6 +49,9 @@ class Zaisekikun(M5StickC):
         ]),
       ("zaiseki", [
         ("client", "text"), 
+        ("status_0", "text"), #60180
+        ("status_1", "text"), #60182
+        ("client", "text"), 
         ("email", "text"), 
         ("password", "password"),
         ]),
@@ -74,43 +77,23 @@ class Zaisekikun(M5StickC):
             config["zaiseki_client"], 
             config["zaiseki_email"], 
             config["zaiseki_password"], 
-            zaiseki.Zaiseki.status[status],
+            config["zaiseki_status_" + str(status)],
             )
           if status == 0:
             status = 1
           else:
             status = 0
         await asyncio.sleep(0)
-    except:
+    except Exception as e:
+      print(type(e), e)
       pass
     self.connection.disconnect_wifi()
 
-class _(M5StickC):
-  async def main(self):
-    self.connection.connect_wifi("will-wifi305", "01234567")
-    await self.connection.wait_connection()
-    z = await zaiseki.get_zaiseki("4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp", "22im0082@i-u.ac.jp", "DLkkiqCijot")
-    await z.execute(zaiseki.Zaiseki.status[0])
+# class _(M5StickC):
+#   async def main(self):
+#     self.connection.connect_wifi("will-wifi305", "01234567")
+#     await self.connection.wait_connection()
+#     z = await zaiseki.get_zaiseki("4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp", "22im0082@i-u.ac.jp", "DLkkiqCijot")
+#     await z.execute(zaiseki.Zaiseki.status[0])
 
-
-client_id = "4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp"
-authentication = {
-    "email": "22im0082@i-u.ac.jp",
-    "pc_login_pass":"DLkkiqCijot",
-}
-
-def attendance(isPresence):
-  lcd.clear(lcd.BLACK)
-  lcd.text(lcd.CENTER, lcd.CENTER, 'change...')
-  zaiseki.execute(client_id, authentication, isPresence)
-  lcd.clear(lcd.BLACK)
-  lcd.text(lcd.CENTER, lcd.CENTER, 'Attendance' if isPresence else "Absence")
-
-
-isPresence = True
-attendance(isPresence)
-
-while True:
-  if btnA.isPressed():
-    isPresence = not isPresence
-    attendance(isPresence)
+Zaisekikun().run()
