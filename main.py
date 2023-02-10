@@ -1,99 +1,56 @@
-import gc
 import uasyncio as asyncio
-import json
 from m5stickc import M5StickC
+from machine import Pin, ADC
 import zaiseki
-import setup_server
+from time import localtime
 
-class Zaisekikun(M5StickC):
-  config_path = "config.json"
-
-  def set_config(self, config):
-    with open(self.config_path, mode="w") as f:
-      json.dump(config, f)
-
-  def get_config(self):
-    try:
-      with open(self.config_path, mode="r") as f:
-        config = json.load(f)
-    except:
-      config = {}
-    return config
-
-  async def main(self):
-    print("start")
-    is_setup, task = False, asyncio.create_task(self.zaiseki_mode())
-    while True:
-      if not self.btnA.value():
-        while True:
-          if self.btnA.value():
-            break
-          await asyncio.sleep(0)
-        print("push button")
-        task.cancel()
+class _(M5StickC):
+  def __init__(self):
+    super().__init__()
+    # self.wifi_ssid = 'Buffalo-G-F048'
+    # self.wifi_password = 's7vyvmhb8jcrj'
+    self.wifi_ssid = "ius-iotcl"
+    self.wifi_password = "!U1ot_rose"
+    self.zaiseki_client_id = "20e2771ftq1k2awbhek2mnn7utwu5ygg9hx9nsutpu92xcu2pq7bqqsd9mqekbzy"
+    self.zaiseki_email = "masato-y@i-u.ac.jp"
+    self.zaiseki_password = "6Go8bZqrK1n"
+    self.status = ["52110", "52111"]
+  async def zaiseki_execute(self, status, task=None):
+    if task:
+      try:
         await task
-      if task.done():
-        if is_setup:
-          is_setup, task = False, asyncio.create_task(self.zaiseki_mode())
-        else:
-          is_setup, task = True, asyncio.create_task(self.setup_mode())
-      await asyncio.sleep(0)
+      except:
+        pass
+    print(status)
+    with open("zaiseki.log", mode='a') as f:
+      f.write(str(localtime()) + str(0 if status<0 else 1))
+    while True:
+      try:
+        await zaiseki.execute(
+        self.zaiseki_client_id,
+        self.zaiseki_email,
+        self.zaiseki_password,
+        self.status[0 if status<0 else 1],   
+        )
+        break
+      except Exception:
+        pass
+  async def main(self):
+    self.connection.connect_wifi(self.wifi_ssid, self.wifi_password)
+    await self.connection.wait_connection()
+    pin32 = Pin(32, Pin.IN, Pin.PULL_UP)
+    pin33 = Pin(33, Pin.IN, Pin.PULL_UP)
+    sensor = ADC(pin33)
+    value, prevalue = sensor.read(), None
+    state = -1
+    task = asyncio.create_task(self.zaiseki_execute(state))
+    while True:
+      value, prevalue = sensor.read(), value
+      diff = prevalue-value
+      if 100 < diff*state:
+        state = -state
+        task.cancel()
+        task = asyncio.create_task(self.zaiseki_execute(state, task))
+      await asyncio.sleep(2)
 
-  async def setup_mode(self):
-    print("setup_mode")
-    self.connection.activate_ap()
-    s = setup_server.SetupServer([
-      ("wifi", [
-        ("ssid", "text"), 
-        ("password", "password"),
-        ]),
-      ("zaiseki", [
-        ("client", "text"), 
-        ("status_0", "text"), #60180
-        ("status_1", "text"), #60182
-        ("client", "text"), 
-        ("email", "text"), 
-        ("password", "password"),
-        ]),
-      ])
-    self.set_config(await s.run(self.get_config()))
-    self.connection.disactivate_ap()
-
-  async def zaiseki_mode(self):
-    print("zaiseki_mode")
-    config = self.get_config()
-    try:
-      self.connection.connect_wifi(config["wifi_ssid"], config["wifi_password"])
-      await asyncio.wait_for(self.connection.wait_connection(), 3)
-      await zaiseki.get_zaiseki(config["zaiseki_client"], config["zaiseki_email"], config["zaiseki_password"])
-      status = 0
-      while True:
-        if not self.btnC.value():
-          while True:
-            if self.btnC.value():
-              break
-            await asyncio.sleep(0)
-          await zaiseki.execute(
-            config["zaiseki_client"], 
-            config["zaiseki_email"], 
-            config["zaiseki_password"], 
-            config["zaiseki_status_" + str(status)],
-            )
-          if status == 0:
-            status = 1
-          else:
-            status = 0
-        await asyncio.sleep(0)
-    except Exception as e:
-      print(type(e), e)
-      pass
-    self.connection.disconnect_wifi()
-
-# class _(M5StickC):
-#   async def main(self):
-#     self.connection.connect_wifi("will-wifi305", "01234567")
-#     await self.connection.wait_connection()
-#     z = await zaiseki.get_zaiseki("4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp", "22im0082@i-u.ac.jp", "DLkkiqCijot")
-#     await z.execute(zaiseki.Zaiseki.status[0])
-
-Zaisekikun().run()
+_().run()

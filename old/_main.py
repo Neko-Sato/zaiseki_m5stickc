@@ -30,7 +30,7 @@ connect_wifi(
   ("aterm-b28299-g", "60898de9a1578"),
 )
 
-
+"4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp", "22im0082@i-u.ac.jp", "DLkkiqCijot"
 client_id = "4yew5dxbp443egaxc9smbu3xnpygvud9x66rw243yq2tm9c3ruqq35u7bu1bq7gp"
 authentication = {
     "email": "22im0082@i-u.ac.jp",
